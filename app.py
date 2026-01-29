@@ -16,14 +16,13 @@ from history_manager import HistoryManager, EditorState
 
 class ImageEditorApp:
     """
-    Modern UI + Controller.
-    Class interaction:
-      - Uses ImageModel (data)
-      - Uses ImageProcessor (operations)
-      - Uses HistoryManager (undo/redo)
+    Uses ImageModel (data)
+    Uses ImageProcessor (operations)
+    Uses HistoryManager (undo/redo)
     """
 
     def __init__(self, root: tk.Tk):
+        """Initialise the application UI, state managers and event bindings."""
         self.root = root
         self.root.title("Image Editor")
         self.root.geometry("1150x720")
@@ -36,35 +35,33 @@ class ImageEditorApp:
         # Tk image holder
         self._tk_image: Optional[ImageTk.PhotoImage] = None
 
-        # UI variables (restored on undo/redo)
-        self.blur_var = tk.IntVar(value=1)           # 1..31
-        self.brightness_var = tk.IntVar(value=0)     # -100..100
-        self.contrast_var = tk.IntVar(value=0)       # -100..100
-        self.scale_var = tk.IntVar(value=100)        # 10..200
+        # UI variables 
+        self.blur_var = tk.IntVar(value=1)           
+        self.brightness_var = tk.IntVar(value=0)    
+        self.contrast_var = tk.IntVar(value=0)       
+        self.scale_var = tk.IntVar(value=100)       
 
-        # Slider preview control (prevents stacking effects)
+        # Slider preview control 
         self._preview_base_bgr: Optional[np.ndarray] = None
         self._preview_active: bool = False
 
-        # UI palette dict is set in _apply_modern_theme()
         self.UI: Dict[str, str] = {}
 
-        self._apply_modern_theme()
+        self._apply_theme()
         self._build_menu()
         self._build_layout()
         self._bind_shortcuts()
         self._update_status("Ready. Open an image to begin.")
 
-    # ---------------- Modern Theme ----------------
 
-    def _apply_modern_theme(self):
+    def _apply_theme(self):
+        """Apply a theme using ttk styling."""
         style = ttk.Style()
         try:
             style.theme_use("clam")
         except Exception:
             pass
 
-        # Modern dark palette
         self.UI = {
             "bg": "#0b1220",
             "panel": "#0f1a2b",
@@ -78,7 +75,6 @@ class ImageEditorApp:
 
         self.root.configure(bg=self.UI["bg"])
 
-        # Base frames/labels
         style.configure("TFrame", background=self.UI["bg"])
         style.configure("Card.TFrame", background=self.UI["panel"], relief="flat")
         style.configure("TLabel", background=self.UI["bg"], foreground=self.UI["text"])
@@ -114,9 +110,10 @@ class ImageEditorApp:
         # Scales
         style.configure("TScale", background=self.UI["panel"])
 
-    # ---------------- Menu ----------------
+    # Menu
 
     def _build_menu(self):
+        """Create the application menu bar."""
         menubar = tk.Menu(self.root)
 
         file_menu = tk.Menu(menubar, tearoff=False)
@@ -137,10 +134,9 @@ class ImageEditorApp:
 
         self.root.config(menu=menubar)
 
-    # ---------------- Layout (Modern UI) ----------------
-
+    # Layout
     def _build_layout(self):
-        # Main wrapper
+        """Build the main window layout."""
         self.main = ttk.Frame(self.root, padding=14)
         self.main.pack(fill=tk.BOTH, expand=True)
 
@@ -148,7 +144,6 @@ class ImageEditorApp:
         self.main.columnconfigure(1, weight=1)
         self.main.rowconfigure(0, weight=1)
 
-        # ---------------- LEFT: Image area ----------------
         left = ttk.Frame(self.main)
         left.grid(row=0, column=0, sticky="nsew", padx=(0, 12))
         left.rowconfigure(1, weight=1)
@@ -161,7 +156,6 @@ class ImageEditorApp:
         ttk.Label(header, text="Image Editor", style="Title.TLabel").grid(row=0, column=0, sticky="w")
         ttk.Label(header, text="Open | Edit | Undo/Redo | Save", style="Muted.TLabel").grid(row=1, column=0, sticky="w")
 
-        # Canvas card
         canvas_card = ttk.Frame(left, style="Card.TFrame", padding=10)
         canvas_card.grid(row=1, column=0, sticky="nsew")
         canvas_card.rowconfigure(0, weight=1)
@@ -176,7 +170,6 @@ class ImageEditorApp:
         )
         self.canvas.grid(row=0, column=0, sticky="nsew")
 
-        # ---------------- RIGHT: Control panel ----------------
         right = ttk.Frame(self.main)
         right.grid(row=0, column=1, sticky="nsew")
         right.columnconfigure(0, weight=1)
@@ -234,7 +227,6 @@ class ImageEditorApp:
         slider_row(7, "Resize % (10–200)", self.scale_scale)
         self.scale_scale.set(self.scale_var.get())
 
-        # Commit on release
         for w in (self.blur_scale, self.brightness_scale, self.contrast_scale, self.scale_scale):
             w.bind("<ButtonPress-1>", self._start_preview)
             w.bind("<ButtonRelease-1>", self._commit_preview)
@@ -254,21 +246,28 @@ class ImageEditorApp:
         self.status.pack(side=tk.BOTTOM, fill=tk.X)
 
     def _bind_shortcuts(self):
+        """Bind keyboard shortcuts for common actions."""
         self.root.bind("<Control-o>", lambda _e: self.open_image())
         self.root.bind("<Control-s>", lambda _e: self.save_image())
         self.root.bind("<Control-Shift-S>", lambda _e: self.save_image_as())
         self.root.bind("<Control-z>", lambda _e: self.undo())
         self.root.bind("<Control-y>", lambda _e: self.redo())
 
-    # ---------------- Helpers ----------------
+    # Helpers 
 
     def _require_image(self) -> bool:
+        """Return True if an image is loaded; otherwise show a warning and return False."""
         if not self.model.has_image():
             messagebox.showwarning("No Image", "Please open an image first (File → Open).")
             return False
         return True
 
     def _cv_to_tk(self, img_bgr: np.ndarray, max_w: int, max_h: int) -> ImageTk.PhotoImage:
+        """
+        Convert an OpenCV BGR image to a Tk-compatible PhotoImage.
+
+        The output is resized to fit within (max_w, max_h) while preserving aspect ratio.
+        """
         rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
         pil = Image.fromarray(rgb)
 
@@ -279,6 +278,7 @@ class ImageEditorApp:
         return ImageTk.PhotoImage(pil)
 
     def _render(self):
+        """Render the current image onto the canvas."""
         self.canvas.delete("all")
         img = self.model.current()
 
@@ -305,9 +305,16 @@ class ImageEditorApp:
         self._update_status(f"{self.model.filename()}  |  {w}x{h}px")
 
     def _update_status(self, text: str):
+        """Update the status bar message."""
         self.status.config(text=text)
 
     def _ui_snapshot(self) -> Dict[str, Any]:
+        """
+        Capture current UI control values.
+
+        Uses the scales as the source of truth because they reflect what the user
+        is actually dragging.
+        """
         return {
             "blur": int(float(self.blur_scale.get())),
             "brightness": int(float(self.brightness_scale.get())),
@@ -316,6 +323,7 @@ class ImageEditorApp:
         }
 
     def _apply_ui_snapshot(self, ui: Dict[str, Any]):
+        """Apply UI values to both variables and visible controls."""
         self.blur_var.set(int(ui.get("blur", 1)))
         self.brightness_var.set(int(ui.get("brightness", 0)))
         self.contrast_var.set(int(ui.get("contrast", 0)))
@@ -327,6 +335,11 @@ class ImageEditorApp:
         self.scale_scale.set(self.scale_var.get())
 
     def _current_state(self) -> EditorState:
+        """
+        Build an EditorState snapshot of the current model + UI.
+
+        Returns a tiny placeholder image if none is loaded to keep typing simple.
+        """
         img = self.model.current()
         if img is None:
             img = np.zeros((10, 10, 3), dtype=np.uint8)
@@ -337,12 +350,14 @@ class ImageEditorApp:
         )
 
     def _push_history(self):
+        """Push the current state to history if an image is loaded."""
         if self.model.has_image():
             self.history.push(self._current_state())
 
-    # ---------------- File operations ----------------
+    # File operations
 
     def open_image(self):
+        """Open an image from disk and reset history controls."""
         path = filedialog.askopenfilename(
             title="Open Image",
             filetypes=[("Image Files", "*.jpg *.jpeg *.png *.bmp"), ("All Files", "*.*")]
@@ -366,6 +381,7 @@ class ImageEditorApp:
             messagebox.showerror("Open Failed", str(e))
 
     def save_image(self):
+        """Save the current image to its existing file path."""
         if not self._require_image():
             return
         if not self.model.file_path():
@@ -377,6 +393,7 @@ class ImageEditorApp:
             messagebox.showerror("Save Failed", str(e))
 
     def save_image_as(self):
+        """Prompt for a new save path and write the current image."""
         if not self._require_image():
             return
         path = filedialog.asksaveasfilename(
@@ -394,6 +411,12 @@ class ImageEditorApp:
             messagebox.showerror("Save As Failed", str(e))
 
     def _save_to_path(self, path: str):
+        """
+        Write the current image to disk.
+
+        Raises:
+            ValueError if the path format is invalid or the write fails.
+        """
         if not path:
             raise ValueError("No save path selected.")
         ext = os.path.splitext(path)[1].lower()
@@ -410,14 +433,16 @@ class ImageEditorApp:
         self._update_status(f"Saved: {os.path.basename(path)}")
 
     def _exit_app(self):
+        """Exit the application"""
         if self.model.has_image():
             if not messagebox.askyesno("Exit", "Exit the editor? Make sure you saved your work."):
                 return
         self.root.destroy()
 
-    # ---------------- Undo/Redo/Reset ----------------
+    # Undo/Redo/Reset
 
     def undo(self):
+        """Undo the last committed change and restore image UI."""
         if not self._require_image():
             return
         prev = self.history.undo(self._current_state())
@@ -433,6 +458,7 @@ class ImageEditorApp:
         self._render()
 
     def redo(self):
+        """Redo the last undone change and restore image UI."""
         if not self._require_image():
             return
         nxt = self.history.redo(self._current_state())
@@ -448,6 +474,7 @@ class ImageEditorApp:
         self._render()
 
     def reset_to_original(self):
+        """Reset the working image to its original loaded state and reset controls."""
         if not self._require_image():
             return
         try:
@@ -465,9 +492,10 @@ class ImageEditorApp:
         except Exception as e:
             messagebox.showerror("Reset Failed", str(e))
 
-    # ---------------- Button Filters ----------------
+    # Button Filters
 
     def apply_grayscale(self):
+        """Apply grayscale conversion."""
         if not self._require_image():
             return
         try:
@@ -479,6 +507,7 @@ class ImageEditorApp:
             messagebox.showerror("Grayscale Failed", str(e))
 
     def apply_edge(self):
+        """Apply edge detection."""
         if not self._require_image():
             return
         try:
@@ -490,6 +519,7 @@ class ImageEditorApp:
             messagebox.showerror("Edge Detection Failed", str(e))
 
     def apply_rotate(self, degrees: int):
+        """Rotate the image by 90/180/270 degrees."""
         if not self._require_image():
             return
         try:
@@ -501,6 +531,7 @@ class ImageEditorApp:
             messagebox.showerror("Rotate Failed", str(e))
 
     def apply_flip(self, mode: str):
+        """Flip the image horizontally or vertically."""
         if not self._require_image():
             return
         try:
@@ -511,15 +542,26 @@ class ImageEditorApp:
         except Exception as e:
             messagebox.showerror("Flip Failed", str(e))
 
-    # ---------------- Slider Preview + Commit ----------------
-
+    # Slider Preview
     def _start_preview(self, _event=None):
+        """
+        Begin a slider preview session.
+
+        Stores the base image and base UI so the eventual commit can push the true
+        "before" state into history.
+        """
         if not self._require_image():
             return
         self._preview_base_bgr = self.model.current()
         self._preview_active = True
 
     def _preview_slider(self, which: str):
+        """
+        Apply a live preview for the currently dragged slider.
+
+        Preview is applied from a frozen base image to prevent stacking effects
+        while dragging.
+        """
         if not self._require_image():
             return
         if not self._preview_active or self._preview_base_bgr is None:
@@ -547,13 +589,19 @@ class ImageEditorApp:
             self._update_status(f"Preview error: {e}")
 
     def _commit_preview(self, _event=None):
+        """
+        Commit the current preview to history.
+
+        Pushes the true "before" snapshot so undo restores
+        both the image and the slider positions correctly.
+        """
         if not self._require_image():
             return
         if self._preview_base_bgr is None:
             return
 
         try:
-            # push base state BEFORE applying
+            # push base state before applying
             self.history.push(EditorState(
                 image_bgr=self._preview_base_bgr.copy(),
                 file_path=self.model.file_path(),
