@@ -83,7 +83,7 @@ class ImageModel:
         img = cv2.imread(path, cv2.IMREAD_COLOR)
         if img is None:
             raise ValueError("Could not read image file.")
-
+        # Keep original immutable , current mutable 
         self._file_path = path
         self._original_bgr = img.copy()
         self._current_bgr = img.copy()
